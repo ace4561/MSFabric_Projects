@@ -1,0 +1,329 @@
+{
+    "name": "Bronze Olist Data Pipeline",
+    "objectId": "cea87a84-2fdc-4033-b08a-baae59754f3f",
+    "properties": {
+        "activities": [
+            {
+                "name": "Ingest_Data",
+                "type": "TridentNotebook",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "36d7c066-2207-41b0-9658-4f91edd2ea86",
+                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b",
+                    "driverCores": 4,
+                    "driverMemory": "28g",
+                    "executorCores": 4,
+                    "executorMemory": "28g",
+                    "dynamicExecutorAllocation": "enable",
+                    "minExecutors": 1,
+                    "maxExecutors": 8
+                }
+            },
+            {
+                "name": "Lookup_Processed_Folders",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "Ingest_Data",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "LakehouseTableSource"
+                    },
+                    "firstRowOnly": false,
+                    "datasetSettings": {
+                        "annotations": [],
+                        "linkedService": {
+                            "name": "DWLakehouse",
+                            "properties": {
+                                "annotations": [],
+                                "type": "Lakehouse",
+                                "typeProperties": {
+                                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b",
+                                    "artifactId": "07f09327-1b8a-4945-995d-b5c5b4ff8278",
+                                    "rootFolder": "Tables"
+                                }
+                            }
+                        },
+                        "type": "LakehouseTable",
+                        "schema": [],
+                        "typeProperties": {
+                            "schema": "dbo",
+                            "table": "unprocessed_folders"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Email_Notification",
+                "type": "Office365Email",
+                "dependsOn": [
+                    {
+                        "activity": "Set variable1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "to": "asifshah.work@gmail.com",
+                    "subject": {
+                        "value": "@concat('FAILURE: ', pipeline().Pipeline, ' | ', formatDateTime(utcNow(), 'yyyy-MM-dd HH:mm:ss'), ' UTC')\n",
+                        "type": "Expression"
+                    },
+                    "body": "<p>@concat(</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'The Fabric pipeline has failed. Below are the details:',&nbsp;</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'&lt;br&gt;&lt;br&gt;',</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'&lt;b&gt;Ingest Data Error:&lt;/b&gt; ', if(contains(activity('Ingest_Data'), 'error'), activity('Ingest_Data')?.error?.message, 'None'),</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'&lt;br&gt;',</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'&lt;b&gt;Lookup Error:&lt;/b&gt; ', if(contains(activity('Lookup_Processed_Folders'), 'error'), activity('Lookup_Processed_Folders')?.error?.message, 'None'),</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'&lt;br&gt;',</p>\n<p>&nbsp;&nbsp;&nbsp;&nbsp;'&lt;b&gt;ForEach Error:&lt;/b&gt; ', if(contains(activity('Loop_through_all_unprocessed_files'), 'error'), activity('Loop_through_all_unprocessed_files')?.error?.message, 'None')</p>\n<p>)</p>\n<p><br></p>"
+                },
+                "externalReferences": {
+                    "connection": "c84fd489-a27a-44fb-aabe-c0082d0e7c27"
+                }
+            },
+            {
+                "name": "Loop_through_all_unprocessed_files",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup_Processed_Folders",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Lookup_Processed_Folders').output.value",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "Copy data1",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "additionalColumns": [
+                                        {
+                                            "name": "source_folder",
+                                            "value": {
+                                                "value": "@{item().folder_name}",
+                                                "type": "Expression"
+                                            }
+                                        },
+                                        {
+                                            "name": "source_file",
+                                            "value": {
+                                                "value": "@{item().file_name}",
+                                                "type": "Expression"
+                                            }
+                                        },
+                                        {
+                                            "name": "ingestion_time",
+                                            "value": {
+                                                "value": "@formatDateTime(utcNow(), 'yyyy-MM-dd HH:mm:ss')",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    ],
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": true,
+                                        "enablePartitionDiscovery": false
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextReadSettings"
+                                    },
+                                    "datasetSettings": {
+                                        "annotations": [],
+                                        "linkedService": {
+                                            "name": "DWLakehouse",
+                                            "properties": {
+                                                "annotations": [],
+                                                "type": "Lakehouse",
+                                                "typeProperties": {
+                                                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b",
+                                                    "artifactId": "07f09327-1b8a-4945-995d-b5c5b4ff8278",
+                                                    "rootFolder": "Files"
+                                                }
+                                            }
+                                        },
+                                        "type": "DelimitedText",
+                                        "typeProperties": {
+                                            "location": {
+                                                "type": "LakehouseLocation",
+                                                "fileName": {
+                                                    "value": "@item().file_name",
+                                                    "type": "Expression"
+                                                },
+                                                "folderPath": {
+                                                    "value": "@concat('raw/', item().folder_name)",
+                                                    "type": "Expression"
+                                                }
+                                            },
+                                            "columnDelimiter": ",",
+                                            "escapeChar": "\"",
+                                            "firstRowAsHeader": true,
+                                            "quoteChar": "\"",
+                                            "multiline": true
+                                        },
+                                        "schema": []
+                                    }
+                                },
+                                "sink": {
+                                    "type": "LakehouseTableSink",
+                                    "tableActionOption": "Append",
+                                    "partitionOption": "None",
+                                    "applyVOrder": false,
+                                    "enableTimestampNtz": false,
+                                    "datasetSettings": {
+                                        "annotations": [],
+                                        "linkedService": {
+                                            "name": "DWLakehouse",
+                                            "properties": {
+                                                "annotations": [],
+                                                "type": "Lakehouse",
+                                                "typeProperties": {
+                                                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b",
+                                                    "artifactId": "07f09327-1b8a-4945-995d-b5c5b4ff8278",
+                                                    "rootFolder": "Tables"
+                                                }
+                                            }
+                                        },
+                                        "type": "LakehouseTable",
+                                        "schema": [],
+                                        "typeProperties": {
+                                            "schema": "Bronze",
+                                            "table": {
+                                                "value": "@item().table_name",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    }
+                                },
+                                "enableStaging": false,
+                                "enableSkipIncompatibleRow": true,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "Wait1",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "Copy data1",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 15
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Update_Metadata_Tables",
+                "type": "TridentNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "Loop_through_all_unprocessed_files",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "73d09f3c-11b4-4523-a543-631a9b1a7854",
+                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b"
+                }
+            },
+            {
+                "name": "Set variable1",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Ingest_Data",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    },
+                    {
+                        "activity": "Lookup_Processed_Folders",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    },
+                    {
+                        "activity": "Loop_through_all_unprocessed_files",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "variableName": "error",
+                    "value": "Failed"
+                }
+            }
+        ],
+        "variables": {
+            "error": {
+                "type": "String"
+            }
+        },
+        "lastModifiedByObjectId": "6dafd8e1-f9ae-4775-a50d-6cf64115d599",
+        "lastPublishTime": "2026-09-20T01:23:43Z"
+    }
+}
