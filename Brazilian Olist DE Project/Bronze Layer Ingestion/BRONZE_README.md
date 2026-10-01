@@ -1,6 +1,6 @@
 # Bronze layer
 
-The raw ingestion layer. This is the landing zone for the Olist source files — no cleaning, no business logic, no dimensional modeling happens here.
+The raw ingestion layer. This is the landing zone for the Olist source files — no cleaning, no business logic, no dimensional modelling happens here. Data is appended to the bronze tables from each timestamped folder run. This means the bronze tables will automatically grow in size and with data regardless of whether the data is duplicated or not.
 
 ## Pipeline flow
 
@@ -23,6 +23,5 @@ The raw ingestion layer. This is the landing zone for the Olist source files —
 
 ## Design notes
 
-- **Schema drift is intentionally tolerated at this layer.** New source columns aren't expected to fail the pipeline — Bronze isn't yet business-modeled, so there's nothing to protect against a wider schema here.
 - **A known limitation, found and documented rather than silently left broken:** the `Copy data1` activity does not reliably widen an *existing* Bronze Delta table's schema when a source file gains a new column — it fails with `SourceColumnIsNotDefinedInDeltaMetadata` instead of adding the column automatically. This was tested directly (see the main project README for the reproduction and root cause). The fix — replacing this Copy Data step with a Notebook activity using the same Spark `mergeSchema`/`autoMerge` pattern already proven at the Silver layer — is scoped out of this iteration but is the clear next step if schema drift needs to be fully supported end-to-end.
 - **Every ingestion run is isolated.** Because each run lands in its own timestamped folder, reprocessing or backfilling a specific batch never risks colliding with another run's data.
