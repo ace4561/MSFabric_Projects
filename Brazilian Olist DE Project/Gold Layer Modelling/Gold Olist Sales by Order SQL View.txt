@@ -1,0 +1,22 @@
+CREATE VIEW Gold.vw_olist_sales_by_order
+
+AS
+
+SELECT
+    b.order_id,
+    a.customer_unique_id,
+    SUM(b.quantity) as 'Total Qty',
+    SUM(b.price) as 'Total Item Cost',
+    SUM(b.freight_value) as 'Total Freight Cost',
+    SUM(b.total_item_value) as 'Order Total',
+    ROUND(AVG(b.freight_pct_of_total),4)*100 as '% AVG Freight Cost'
+
+FROM
+    Gold.dim_olist_orders a
+    INNER JOIN
+    Gold.fact_olist_order_items b
+        ON a.order_id = b.order_id
+
+GROUP BY 
+    b.order_id,
+    a.customer_unique_id

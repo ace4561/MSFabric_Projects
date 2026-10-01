@@ -1,0 +1,36 @@
+USE DWarehouseGold
+GO
+
+CREATE TABLE dbo.dim_tables
+(
+id INT NOT NULL,
+db_schema CHAR(4),
+table_name VARCHAR(50),
+stored_proc VARCHAR(100)
+)
+
+CREATE TABLE dbo.fact_tables
+(
+id INT NOT NULL,
+db_schema CHAR(4),
+table_name VARCHAR(50), 
+stored_proc VARCHAR(100)
+)
+
+INSERT INTO dbo.dim_tables (id, db_schema, table_name, stored_proc)
+    VALUES 
+        (1, 'Gold', 'dim_olist_orders', 'merge_dim_olist_orders'),
+        (2, 'Gold', 'dim_olist_customers', 'upsert_dim_olist_customers'),
+        (3, 'Gold', 'dim_olist_sellers', 'upsert_dim_olist_sellers'),
+        (4, 'Gold', 'dim_olist_products', 'merge_dim_olist_products')
+
+INSERT INTO dbo.fact_tables (id, db_schema, table_name, stored_proc)
+    VALUES   
+        (1, 'Gold', 'fact_olist_order_reviews', 'upsert_fact_olist_order_reviews'),
+        (2, 'Gold', 'fact_olist_order_items', 'merge_fact_olist_order_items'),
+        (3, 'Gold', 'fact_olist_payments', 'insert_fact_olist_payment')
+
+
+
+
+

@@ -1,0 +1,134 @@
+CREATE PROCEDURE Gold.upsert_fact_olist_order_reviews
+
+AS
+
+BEGIN 
+SET NOCOUNT ON;
+
+--Fact Order Reviews table upsert
+-- ============================================
+-- Step 1: update existing reviews
+-- ============================================
+UPDATE t
+SET t.review_answer_date_sk   = s.review_answer_date_sk,
+    t.review_score             = s.review_score,
+    t.has_comment_title        = s.has_comment_title,
+    t.has_comment_message      = s.has_comment_message,
+    t.comment_title_length     = s.comment_title_length,
+    t.comment_message_length   = s.comment_message_length,
+    t.response_time_hours      = s.response_time_hours,
+    t.is_positive_review       = s.is_positive_review,
+    t.is_negative_review       = s.is_negative_review,
+    t.review_comment_title     = s.review_comment_title,
+    t.review_comment_message    = s.review_comment_message,
+    t.updated_at                = SYSUTCDATETIME()
+
+FROM Gold.fact_olist_order_reviews t
+INNER JOIN (
+    SELECT
+        r.review_id,
+        r.order_id,
+        dc.date_sk AS review_creation_date_sk,
+        da.date_sk AS review_answer_date_sk,
+        r.review_score,
+        CASE WHEN r.review_comment_title   IS NOT NULL AND LEN(r.review_comment_title)   > 0 THEN 1 ELSE 0 END AS has_comment_title,
+        CASE WHEN r.review_comment_message IS NOT NULL AND LEN(r.review_comment_message) > 0 THEN 1 ELSE 0 END AS has_comment_message,
+        ISNULL(LEN(r.review_comment_title), 0)   AS comment_title_length,
+        ISNULL(LEN(r.review_comment_message), 0) AS comment_message_length,
+        DATEDIFF(MINUTE, r.review_creation_date, r.review_answer_timestamp) / 60.0 AS response_time_hours,
+        CASE WHEN r.review_score >= 4 THEN 1 ELSE 0 END AS is_positive_review,
+        CASE WHEN r.review_score <= 2 THEN 1 ELSE 0 END AS is_negative_review,
+        r.review_comment_title,
+        r.review_comment_message
+
+    FROM DWLakehouse.Silver.olist_order_reviews r
+    LEFT JOIN Gold.dim_date dc
+        ON dc.calendar_date = CAST(r.review_creation_date AS DATE)
+    LEFT JOIN Gold.dim_date da
+        ON da.calendar_date = CAST(r.review_answer_timestamp AS DATE)
+) s
+
+    ON t.review_id = s.review_id
+WHERE ISNULL(t.review_answer_date_sk, 0) <> ISNULL(s.review_answer_date_sk, 0)
+
+-- ============================================
+-- Step 2: insert brand-new reviews
+-- ============================================
+INSERT INTO Gold.fact_olist_order_reviews 
+(
+    order_sk,
+    customer_sk,
+    review_id, 
+    order_id, 
+    review_creation_date_sk, 
+    review_answer_date_sk,
+    review_score, 
+    has_comment_title, 
+    has_comment_message,
+    comment_title_length, 
+    comment_message_length, 
+    response_time_hours,
+    is_positive_review, 
+    is_negative_review, 
+    review_comment_title,
+    review_comment_message,
+    created_at, 
+    updated_at
+)
+
+SELECT
+    s.order_sk,
+    s.customer_sk,
+    s.review_id, 
+    s.order_id, 
+    s.review_creation_date_sk, 
+    s.review_answer_date_sk,
+    s.review_score, 
+    s.has_comment_title, 
+    s.has_comment_message,
+    s.comment_title_length, 
+    s.comment_message_length, 
+    s.response_time_hours,
+    s.is_positive_review, 
+    s.is_negative_review, 
+    s.review_comment_title,
+    s.review_comment_message,
+    SYSUTCDATETIME(), 
+    SYSUTCDATETIME()
+
+FROM (
+    SELECT
+        a.order_sk,
+        b.customer_sk,
+        r.review_id,
+        r.order_id,
+        dc.date_sk AS review_creation_date_sk,
+        da.date_sk AS review_answer_date_sk,
+        r.review_score,
+        CASE WHEN r.review_comment_title   IS NOT NULL AND LEN(r.review_comment_title)   > 0 THEN 1 ELSE 0 END AS has_comment_title,
+        CASE WHEN r.review_comment_message IS NOT NULL AND LEN(r.review_comment_message) > 0 THEN 1 ELSE 0 END AS has_comment_message,
+        ISNULL(LEN(r.review_comment_title), 0)   AS comment_title_length,
+        ISNULL(LEN(r.review_comment_message), 0) AS comment_message_length,
+        ROUND(DATEDIFF(MINUTE, r.review_creation_date, r.review_answer_timestamp) / 60.0, 2) AS response_time_hours,
+        CASE WHEN r.review_score >= 4 THEN 1 ELSE 0 END AS is_positive_review,
+        CASE WHEN r.review_score <= 2 THEN 1 ELSE 0 END AS is_negative_review,
+        r.review_comment_title,
+        r.review_comment_message
+
+    FROM DWLakehouse.Silver.olist_order_reviews r
+    LEFT JOIN Gold.dim_date dc
+        ON dc.calendar_date = CAST(r.review_creation_date AS DATE)
+    LEFT JOIN Gold.dim_date da
+        ON da.calendar_date = CAST(r.review_answer_timestamp AS DATE)
+    LEFT JOIN Gold.dim_olist_orders a
+        ON a.order_id = r.order_id
+    LEFT JOIN Gold.dim_olist_customers b
+        ON a.customer_unique_id = b.customer_unique_id
+) s
+
+WHERE NOT EXISTS (
+    SELECT 1 FROM Gold.fact_olist_order_reviews t WHERE t.review_id = s.review_id
+);
+
+SET NOCOUNT OFF;
+END

@@ -1,0 +1,20 @@
+CREATE VIEW Gold.vw_olist_sales_by_customer
+
+AS
+
+SELECT
+    a.customer_unique_id,
+    SUM(b.quantity) as 'Total Qty',
+    SUM(b.price) as 'Total Item Cost',
+    SUM(b.freight_value) as 'Total Freight Cost',
+    SUM(b.total_item_value) as 'Order Total'
+
+
+FROM
+    Gold.fact_olist_order_items b
+    LEFT JOIN 
+    Gold.dim_olist_customers a
+    ON a.customer_sk = b.customer_sk
+
+GROUP BY 
+    a.customer_unique_id

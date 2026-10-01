@@ -1,0 +1,55 @@
+-- 1. Define your date boundary constraints
+DECLARE @StartDate DATE = '2013-01-01';
+DECLARE @EndDate DATE = '2040-12-31';
+
+-- Calculate total inclusive days to generate
+DECLARE @TotalDays INT = DATEDIFF(DAY, @StartDate, @EndDate);
+
+-- 2. Bulk Generation using a single Set-Based Operation
+WITH DayOffsetSequence AS (
+    -- GENERATE_SERIES outputs a single column named 'value'
+    SELECT value AS DayOffset
+    FROM GENERATE_SERIES(0, @TotalDays, 1)
+
+    
+),
+
+DateSequence AS (
+    -- Project out the raw dates from the starting window bound
+    SELECT DATEADD(DAY, DayOffset, @StartDate) AS CurrentDate
+    FROM DayOffsetSequence
+),
+CalculatedAttributes AS (
+    SELECT 
+        -- Surrogate key format: YYYYMMDD
+        CAST(FORMAT(CurrentDate, 'yyyyMMdd') AS INT) AS date_sk,
+        CurrentDate AS calendar_date,
+
+        -- Calendar breakdown
+        YEAR(CurrentDate) AS year_number,
+        DATEPART(QUARTER, CurrentDate) AS quarter_number,
+        MONTH(CurrentDate) AS month_number,
+        DATENAME(MONTH, CurrentDate) AS month_name,
+        LEFT(DATENAME(MONTH, CurrentDate), 3) AS month_name_short,
+        DAY(CurrentDate) AS day_of_month,
+        DATEPART(DAYOFYEAR, CurrentDate) AS day_of_year,
+
+        -- Week breakdown
+        DATEPART(WEEK, CurrentDate) AS week_of_year,
+        DATEPART(WEEKDAY, CurrentDate) AS day_of_week_number, -- 1 (Sunday) to 7 (Saturday)
+        DATENAME(WEEKDAY, CurrentDate) AS day_name,
+        LEFT(DATENAME(WEEKDAY, CurrentDate), 3) AS day_name_short,
+        
+        -- Map to T-SQL BIT (1 for Saturday/Sunday, 0 otherwise)
+        CAST(CASE WHEN DATEPART(WEEKDAY, CurrentDate) IN (1, 7) THEN 1 ELSE 0 END AS BIT) AS is_weekend,
+
+        -- Reporting axis helper labels
+        FORMAT(CurrentDate, 'yyyy-MM') AS year_month,
+        CAST(YEAR(CurrentDate) AS CHAR(4)) + '-Q' + CAST(DATEPART(QUARTER, CurrentDate) AS CHAR(1)) AS year_quarter
+    FROM DateSequence
+)
+-- 3. Ingest directly into the target dimensional table
+INSERT INTO Gold.dim_date
+SELECT * FROM CalculatedAttributes
+ORDER BY calendar_date ASC;
+

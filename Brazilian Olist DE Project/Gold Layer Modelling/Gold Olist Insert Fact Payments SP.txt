@@ -1,0 +1,48 @@
+CREATE PROCEDURE Gold.insert_fact_olist_payment
+
+AS
+
+BEGIN
+SET NOCOUNT ON;
+
+INSERT INTO Gold.fact_olist_payments
+(
+    order_sk,
+    customer_sk,
+    order_id,
+    payment_sequential,
+    payment_type,
+    payment_installments,
+    payment_value,
+    created_at,
+    updated_at
+)
+
+SELECT
+    a.order_sk,
+    b.customer_sk,
+    s.order_id,
+    s.payment_sequential,
+    s.payment_type,
+    s.payment_installments,
+    s.payment_value,  
+    SYSUTCDATETIME(),
+    SYSUTCDATETIME()
+
+FROM DWlakehouse.Silver.olist_order_payments s
+LEFT JOIN Gold.dim_olist_orders a
+ON s.order_id = a.order_id
+LEFT JOIN Gold.dim_olist_customers b
+ON a.customer_unique_id = b.customer_unique_id
+
+WHERE NOT EXISTS (
+    SELECT 1 FROM Gold.fact_olist_payments t 
+    WHERE (t.order_id = s.order_id AND t.payment_sequential = s.payment_sequential)
+);
+
+SET NOCOUNT OFF;
+END;
+
+    
+
+

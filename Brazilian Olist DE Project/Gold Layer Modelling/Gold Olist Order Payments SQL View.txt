@@ -1,0 +1,43 @@
+CREATE VIEW Gold.vw_order_payments
+
+AS
+
+with payments as (
+
+select  order_id, 
+        sum(payment_value) as 'total_payment_made'
+
+from 
+        Gold.fact_olist_payments
+
+group by 
+        order_id
+),
+
+orders as (
+
+select  a.order_id, 
+        b.customer_unique_id,
+        sum(a.total_item_value) as 'total_order_value'
+
+from 
+        Gold.fact_olist_order_items a
+        LEFT JOIN 
+        Gold.dim_olist_orders b
+        ON a.order_id = b.order_id
+       
+
+group by 
+        a.order_id,
+        b.customer_unique_id
+)
+
+select 
+        payments.order_id, 
+        orders.customer_unique_id,
+        payments.total_payment_made,
+        orders.total_order_value,
+        orders.total_order_value - payments.total_payment_made as 'outstanding_amount'
+
+from orders left join payments
+on orders.order_id = payments.order_id

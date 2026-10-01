@@ -1,0 +1,87 @@
+CREATE PROCEDURE Gold.merge_fact_olist_order_items
+
+AS
+BEGIN
+
+SET NOCOUNT ON;
+
+MERGE INTO Gold.fact_olist_order_items AS t
+USING (
+        SELECT
+        si.order_id,
+        si.order_item_id,
+        oo.order_sk,
+        cc.customer_sk,
+        pp.product_sk,
+        ss.seller_sk,
+        dd.date_sk AS shipping_limit_date_sk,
+        si.shipping_limit_date,
+        si.price,
+        si.freight_value
+    FROM DWLakehouse.Silver.olist_order_items AS si
+    LEFT JOIN Gold.dim_date AS dd
+        ON CAST(si.shipping_limit_date AS DATE) = dd.calendar_date
+    LEFT JOIN Gold.dim_olist_products pp
+        ON si.product_id = pp.product_id
+    LEFT JOIN Gold.dim_olist_sellers ss
+        ON si.seller_id = ss.seller_id
+    LEFT JOIN Gold.dim_olist_orders oo
+        ON si.order_id = oo.order_id
+    LEFT JOIN Gold.dim_olist_customers cc
+        ON oo.customer_unique_id = cc.customer_unique_id
+    
+) AS s
+
+ON  t.order_id = s.order_id
+    AND t.order_item_id = s.order_item_id
+
+WHEN MATCHED AND
+    t.shipping_limit_date <> s.shipping_limit_date
+THEN UPDATE
+        SET shipping_limit_date = s.shipping_limit_date,
+	    shipping_limit_date_sk = s.shipping_limit_date_sk,
+            updated_at = SYSUTCDATETIME()
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        order_sk,
+        product_sk,
+        seller_sk,
+        customer_sk,
+        order_id,
+        order_item_id,
+        shipping_limit_date_sk,
+        shipping_limit_date,
+        quantity,
+        price,
+        freight_value,
+        total_item_value,
+        freight_pct_of_total,
+        created_at,
+        updated_at
+    )
+    VALUES (
+        s.order_sk,
+        s.product_sk,
+        s.seller_sk,
+        s.customer_sk,
+        s.order_id,
+        s.order_item_id,
+        s.shipping_limit_date_sk,
+        s.shipping_limit_date,
+        1,
+        s.price,
+        s.freight_value,
+        s.price + s.freight_value,
+
+        CASE WHEN (s.price + s.freight_value) = 0 THEN NULL
+            ELSE s.freight_value / (s.price + s.freight_value)
+        END,
+
+        SYSUTCDATETIME(),
+        SYSUTCDATETIME()
+
+    );
+    
+    SET NOCOUNT OFF;
+    END

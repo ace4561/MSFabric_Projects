@@ -1,0 +1,97 @@
+--Gold Layer Olist FACT Tables Creation Script--
+
+-- ============================================
+-- Create schema if it doesn't already exist
+-- ============================================
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Gold')
+BEGIN
+    EXEC('CREATE SCHEMA Gold');
+END
+GO
+
+-- ============================================
+-- FACT: fact_olist_payments
+-- ============================================
+
+CREATE TABLE Gold.fact_olist_payments (
+    payment_sk               BIGINT IDENTITY NOT NULL,
+    order_sk                 BIGINT NULL,
+    customer_sk              BIGINT NULL,
+    order_id                 VARCHAR(50),
+    payment_sequential       INT NOT NULL,
+    payment_type             VARCHAR(20),
+    payment_installments     INT,
+    payment_value            DECIMAL(10,2),
+    created_at               DATETIME2(0) NOT NULL,
+    updated_at               DATETIME2(0) NOT NULL
+);
+GO
+
+ALTER TABLE Gold.fact_olist_payments
+ADD CONSTRAINT PK_fact_payments PRIMARY KEY NONCLUSTERED (payment_sk) NOT ENFORCED;
+GO
+
+-- ============================================
+-- FACT: fact_olist_order_reviews
+-- ============================================
+
+CREATE TABLE [DWarehouseGold].[Gold].[fact_olist_order_reviews]
+(
+	[review_sk] [bigint] IDENTITY NOT NULL,
+	[order_sk] [bigint] NULL,
+	[customer_sk] [bigint] NULL,
+	[review_id] [varchar](50) NOT NULL,
+	[order_id] [varchar](50) NOT NULL,
+	[review_creation_date_sk] [int] NULL,
+	[review_answer_date_sk] [int] NULL,
+	[review_score] [smallint] NULL,
+	[has_comment_title] [bit] NULL,
+	[has_comment_message] [bit] NULL,
+	[comment_title_length] [int] NULL,
+	[comment_message_length] [int] NULL,
+	[response_time_hours] [float] NULL,
+	[is_positive_review] [bit] NULL,
+	[is_negative_review] [bit] NULL,
+	[review_comment_title] [varchar](500) NULL,
+	[review_comment_message] [varchar](8000) NULL,
+	[created_at] [datetime2](0) NOT NULL,
+	[updated_at] [datetime2](0) NOT NULL
+);
+
+
+ALTER TABLE [Gold].[fact_olist_order_reviews]
+ADD CONSTRAINT PK_fact_reviews PRIMARY KEY NONCLUSTERED (review_sk) NOT ENFORCED;
+
+-- ============================================
+-- FACT: fact_olist_order_items
+-- ============================================
+
+CREATE TABLE [DWarehouseGold].[Gold].[fact_olist_order_items]
+(
+	[order_item_sk] [bigint] IDENTITY NOT NULL,
+	[order_sk] [bigint] NULL,
+	[product_sk] [bigint] NULL,
+	[seller_sk] [bigint] NULL,
+	[customer_sk] [bigint] NULL,
+	[order_id] [varchar](50) NOT NULL,
+	[order_item_id] [int] NOT NULL,
+	[shipping_limit_date_sk] [int] NULL,
+	[shipping_limit_date] [datetime2](0) NULL,
+	[quantity] [int] NOT NULL,
+	[price] [decimal](10,2) NULL,
+	[freight_value] [decimal](10,2) NULL,
+	[total_item_value] [decimal](10,2) NULL,
+	[freight_pct_of_total] [float] NULL,
+	[created_at] [datetime2](0) NOT NULL,
+	[updated_at] [datetime2](0) NOT NULL
+);
+GO
+
+ALTER TABLE Gold.fact_olist_order_items
+ADD CONSTRAINT PK_fact_order_items PRIMARY KEY NONCLUSTERED (order_item_sk) NOT ENFORCED;
+GO
+
+
+
+

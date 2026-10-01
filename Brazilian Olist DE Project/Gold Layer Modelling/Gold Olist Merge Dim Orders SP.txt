@@ -1,0 +1,68 @@
+CREATE PROCEDURE Gold.merge_dim_olist_orders
+
+AS
+
+BEGIN
+SET NOCOUNT ON;
+
+MERGE INTO Gold.dim_olist_orders AS t
+USING (
+    SELECT
+        o.order_id,
+        c.customer_unique_id,
+        o.order_status,
+        o.order_purchase_timestamp,
+        o.order_approved_at,
+        o.order_delivered_carrier_date,
+        o.order_delivered_customer_date,
+        o.order_estimated_delivery_date
+    FROM DWLakehouse.Silver.olist_orders AS o
+    LEFT JOIN DWLakehouse.Silver.olist_customers AS c
+        ON o.customer_id = c.customer_id
+) AS s
+ON t.order_id = s.order_id
+
+WHEN MATCHED AND 
+        (t.order_status <> s.order_status
+       OR t.order_approved_at <> s.order_approved_at
+       OR t.order_delivered_carrier_date <> s.order_delivered_carrier_date
+       OR t.order_delivered_customer_date <> s.order_delivered_customer_date
+       OR t.order_estimated_delivery_date <> s.order_estimated_delivery_date
+            )
+THEN UPDATE
+        SET
+            order_status = s.order_status,
+            order_approved_at = s.order_approved_at,
+            order_delivered_carrier_date = s.order_delivered_carrier_date,
+            order_delivered_customer_date = s.order_delivered_customer_date,
+            order_estimated_delivery_date = s.order_estimated_delivery_date,
+            updated_at = SYSUTCDATETIME()
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        order_id,
+        customer_unique_id,
+        order_status,
+        order_purchase_timestamp,
+        order_approved_at,
+        order_delivered_carrier_date,
+        order_delivered_customer_date,
+        order_estimated_delivery_date,
+        created_at,
+        updated_at
+    )
+    VALUES (
+        s.order_id,
+        s.customer_unique_id,
+        s.order_status,
+        s.order_purchase_timestamp,
+        s.order_approved_at,
+        s.order_delivered_carrier_date,
+        s.order_delivered_customer_date,
+        s.order_estimated_delivery_date,
+        SYSUTCDATETIME(),
+        SYSUTCDATETIME()
+    );
+
+    SET NOCOUNT OFF;
+    END

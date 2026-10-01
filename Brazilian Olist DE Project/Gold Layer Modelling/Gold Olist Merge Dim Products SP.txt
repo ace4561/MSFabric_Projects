@@ -1,0 +1,82 @@
+CREATE PROCEDURE Gold.merge_dim_olist_products
+AS
+BEGIN
+    -- Optimizes processing in Fabric by turning off the row-count messaging
+   SET NOCOUNT ON;
+
+    MERGE Gold.dim_olist_products AS t
+    USING (
+        SELECT 
+            a.product_id,
+            a.product_category_name,
+            b.product_category_name_english, 
+            a.product_name_length,
+            a.product_description_length,
+            a.product_photos_qty,
+            a.product_weight_g,
+            a.product_length_cm,
+            a.product_height_cm,
+            a.product_width_cm
+        FROM DWLakehouse.Silver.olist_products a
+        LEFT JOIN DWLakehouse.Silver.product_category_name_translation b
+            ON a.product_category_name = b.product_category_name
+    ) AS s
+    ON t.product_id = s.product_id
+
+    WHEN MATCHED AND        
+        (
+           ISNULL(t.product_category_name,'')          <> ISNULL(s.product_category_name,'')
+        OR ISNULL(t.product_category_name_english,'')  <> ISNULL(s.product_category_name_english,'')
+        OR ISNULL(t.product_weight_g,0)                <> ISNULL(s.product_weight_g,0)
+        OR ISNULL(t.product_length_cm,0)               <> ISNULL(s.product_length_cm,0)
+        OR ISNULL(t.product_height_cm,0)               <> ISNULL(s.product_height_cm,0)
+        OR ISNULL(t.product_width_cm,0)                <> ISNULL(s.product_width_cm,0)
+        )
+
+    THEN
+    UPDATE SET 
+        product_category_name         = s.product_category_name,
+        product_category_name_english = s.product_category_name_english,
+        product_name_length           = s.product_name_length,
+        product_description_length    = s.product_description_length,
+        product_photos_qty            = s.product_photos_qty,
+        product_weight_g              = s.product_weight_g,
+        product_length_cm             = s.product_length_cm,
+        product_height_cm             = s.product_height_cm, 
+        product_width_cm              = s.product_width_cm,
+        updated_at                    = SYSUTCDATETIME()
+
+    WHEN NOT MATCHED THEN
+    INSERT
+    (
+        product_id,
+        product_category_name,
+        product_category_name_english,
+        product_name_length,
+        product_description_length,
+        product_photos_qty,
+        product_weight_g,
+        product_length_cm,
+        product_height_cm,
+        product_width_cm,
+        created_at,
+        updated_at 
+    )
+    VALUES
+    (
+        s.product_id,
+        s.product_category_name,
+        s.product_category_name_english,
+        s.product_name_length,
+        s.product_description_length,
+        s.product_photos_qty,
+        s.product_weight_g,
+        s.product_length_cm,
+        s.product_height_cm,
+        s.product_width_cm,
+        SYSUTCDATETIME(),
+        SYSUTCDATETIME()
+    );
+
+   SET NOCOUNT OFF;
+END;

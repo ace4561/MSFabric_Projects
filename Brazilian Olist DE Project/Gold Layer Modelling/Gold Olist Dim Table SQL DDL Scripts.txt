@@ -1,0 +1,136 @@
+-- ============================================
+-- Create schema if it doesn't already exist
+-- ============================================
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'Gold')
+BEGIN
+    EXEC('CREATE SCHEMA Gold');
+END
+GO
+
+-- ============================================
+-- DIM: dim_date
+-- ============================================
+CREATE TABLE Gold.dim_date (
+    date_sk                  INT NOT NULL,
+    calendar_date            DATE NOT NULL,
+    year_number              INT,
+    quarter_number           INT,
+    month_number             INT,
+    month_name               VARCHAR(10),
+    month_name_short         VARCHAR(3),
+    day_of_month             INT,
+    day_of_year              INT,
+    week_of_year             INT,
+    day_of_week_number       INT,
+    day_name                 VARCHAR(10),
+    day_name_short           VARCHAR(3),
+    is_weekend                BIT,
+    year_month                VARCHAR(7),
+    year_quarter              VARCHAR(7)
+);
+GO
+
+ALTER TABLE Gold.dim_date
+ADD CONSTRAINT PK_dim_date PRIMARY KEY NONCLUSTERED (date_sk) NOT ENFORCED;
+GO
+
+
+-- ============================================
+-- DIM: dim_olist_orders
+-- ============================================
+
+CREATE TABLE [DWarehouseGold].[Gold].[dim_olist_orders]
+(
+	[order_sk]                          [bigint] IDENTITY NOT NULL,
+	[order_id]                          [varchar](50) NOT NULL,
+    [customer_unique_id]                [varchar] (32) NOT NULL,
+	[order_status]                      [varchar](20) NULL,
+	[order_purchase_timestamp]          [datetime2](0) NULL,
+	[order_approved_at]                 [datetime2](0) NULL,
+	[order_delivered_carrier_date]      [datetime2](0) NULL,
+	[order_delivered_customer_date]     [datetime2](0) NULL,
+	[order_estimated_delivery_date]     [datetime2](0) NULL,
+	[created_at]                        [datetime2](0) NOT NULL,
+	[updated_at]                        [datetime2](0) NOT NULL
+);
+GO
+
+ALTER TABLE [DWarehouseGold].[Gold].[dim_olist_orders]
+ADD CONSTRAINT PK_dim_orders PRIMARY KEY NONCLUSTERED (order_sk) NOT ENFORCED;
+GO
+
+-- ============================================
+-- DIM: dim_olist_customers
+-- ============================================
+
+CREATE TABLE Gold.dim_olist_customers (
+    customer_sk              BIGINT IDENTITY NOT NULL, 
+    customer_unique_id       VARCHAR(32) NOT NULL,       
+    customer_zip_code_prefix VARCHAR(5)  NULL,
+    customer_city            VARCHAR(100) NULL,
+    customer_state           VARCHAR(2)  NULL,
+    customer_state_name      VARCHAR(100) NULL,
+    geo_lat                  DECIMAL(6, 4) NULL,
+    geo_lng                  DECIMAL(7, 4) NULL,
+    active_flag              CHAR(1)     NOT NULL, -- 'Y' denotes the current record, 'N' denotes historical
+    start_date               DATETIME2(0)   NOT NULL, -- Timestamp when this attribute version became active
+    end_date                 DATETIME2(0)   NULL,     -- Timestamp when this version expired (NULL if active)
+    created_at               DATETIME2(0)   NOT NULL, -- System date when this row was first generated
+    updated_at               DATETIME2(0)   NOT NULL  -- System date of the latest pipeline record alteration
+);
+GO
+
+ALTER TABLE Gold.dim_olist_customers
+ADD CONSTRAINT PK_dim_olist_customers PRIMARY KEY NONCLUSTERED (customer_sk) NOT ENFORCED;
+GO
+
+-- ============================================
+-- DIM: dim_olist_sellers
+-- ============================================
+
+CREATE TABLE Gold.dim_olist_sellers (
+    seller_sk               BIGINT IDENTITY NOT NULL,
+    seller_id               VARCHAR(50) NOT NULL,
+    seller_zip_code_prefix  VARCHAR(10),
+    seller_city             VARCHAR(100),
+    seller_state            CHAR(2),
+    geo_lat                  DECIMAL(8, 4) NULL,
+    geo_lng                  DECIMAL(8, 4) NULL,
+    seller_state_name     	VARCHAR(100) NULL,
+    active_flag             CHAR(1) NULL,
+    start_date              DATETIME2(0) NOT NULL,
+    end_date                DATETIME2(0) NULL,
+    created_at               DATETIME2(0) NOT NULL,
+    updated_at               DATETIME2(0) NOT NULL
+);
+GO
+
+ALTER TABLE Gold.dim_olist_sellers
+ADD CONSTRAINT PK_dim_olist_sellers PRIMARY KEY NONCLUSTERED (seller_sk) NOT ENFORCED;
+GO
+
+-- ============================================
+-- DIM: dim_olist_products
+-- ============================================
+
+CREATE TABLE Gold.dim_olist_products (
+    product_sk                     BIGINT IDENTITY NOT NULL,
+    product_id                     VARCHAR(50) NOT NULL,
+    product_category_name          VARCHAR(100),
+    product_category_name_english  VARCHAR(100),
+    product_name_length            INT,
+    product_description_length     INT,
+    product_photos_qty             INT,
+    product_weight_g               INT,
+    product_length_cm              DECIMAL(10,4),
+    product_height_cm              DECIMAL(10,4),
+    product_width_cm               DECIMAL(10,4),
+    created_at                     DATETIME2(0) NOT NULL,
+    updated_at                     DATETIME2(0) NOT NULL
+);
+GO
+
+ALTER TABLE Gold.dim_olist_products
+ADD CONSTRAINT PK_dim_olist_products PRIMARY KEY NONCLUSTERED (product_sk) NOT ENFORCED;
+GO
+

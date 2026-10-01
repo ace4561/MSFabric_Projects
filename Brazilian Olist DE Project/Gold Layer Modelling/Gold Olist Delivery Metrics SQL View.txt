@@ -1,0 +1,25 @@
+CREATE VIEW Gold.vw_olist_order_delivery_metrics AS
+
+SELECT
+        order_sk,
+        order_id,
+        customer_unique_id,
+        DATEDIFF(HOUR, order_purchase_timestamp, order_approved_at) AS hours_to_approve,
+        DATEDIFF(HOUR, order_approved_at, order_delivered_carrier_date) AS hours_to_carrier,
+        DATEDIFF(HOUR, order_delivered_carrier_date, order_delivered_customer_date) AS hours_carrier_to_customer,
+        DATEDIFF(HOUR, order_purchase_timestamp, order_delivered_customer_date) AS hours_purchase_to_delivery,
+        DATEDIFF(DAY,  order_estimated_delivery_date, order_delivered_customer_date) AS delivery_delay_days,
+        
+        CASE WHEN order_status = 'delivered' THEN 1 
+        ELSE 0 
+        END AS is_delivered,
+        
+        CASE WHEN order_delivered_customer_date > order_estimated_delivery_date THEN 1 
+        ELSE 0 
+        END AS is_delivered_late,
+        
+        CASE WHEN order_status = 'canceled' THEN 1 
+        ELSE 0 
+        END AS is_canceled
+
+FROM Gold.dim_olist_orders

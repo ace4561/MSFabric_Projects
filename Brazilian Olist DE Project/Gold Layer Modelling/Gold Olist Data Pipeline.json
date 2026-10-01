@@ -1,0 +1,238 @@
+{
+    "name": "Gold Olist Data Pipeline",
+    "objectId": "a9343ddf-88cd-4663-b103-55b2df28110f",
+    "properties": {
+        "activities": [
+            {
+                "name": "loop through all SPs that load dim tables",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "lookup_dim_table_stored_proc",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('lookup_dim_table_stored_proc').output.value",
+                        "type": "Expression"
+                    },
+                    "isSequential": false,
+                    "activities": [
+                        {
+                            "name": "Stored procedure1",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "storedProcedureName": {
+                                    "value": "@concat(item().db_schema, '.' , item().stored_proc)",
+                                    "type": "Expression"
+                                }
+                            },
+                            "linkedService": {
+                                "name": "DWarehouseGold",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "DataWarehouse",
+                                    "typeProperties": {
+                                        "endpoint": "tqpmecgh4qwehnxfubflt6bxom-s4lv34tzphue3gkequmiidcxnm.datawarehouse.fabric.microsoft.com",
+                                        "artifactId": "01c6b649-7b9c-46d8-b2aa-7000946874ba",
+                                        "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "lookup_dim_table_stored_proc",
+                "type": "Lookup",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "DataWarehouseSource",
+                        "queryTimeout": "02:00:00",
+                        "partitionOption": "None"
+                    },
+                    "firstRowOnly": false,
+                    "datasetSettings": {
+                        "annotations": [],
+                        "linkedService": {
+                            "name": "DWarehouseGold",
+                            "properties": {
+                                "annotations": [],
+                                "type": "DataWarehouse",
+                                "typeProperties": {
+                                    "endpoint": "tqpmecgh4qwehnxfubflt6bxom-s4lv34tzphue3gkequmiidcxnm.datawarehouse.fabric.microsoft.com",
+                                    "artifactId": "01c6b649-7b9c-46d8-b2aa-7000946874ba",
+                                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b"
+                                }
+                            }
+                        },
+                        "type": "DataWarehouseTable",
+                        "schema": [],
+                        "typeProperties": {
+                            "schema": "dbo",
+                            "table": "dim_tables"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "lookup_fact_table_stored_proc",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "loop through all SPs that load dim tables",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "DataWarehouseSource",
+                        "queryTimeout": "02:00:00",
+                        "partitionOption": "None"
+                    },
+                    "firstRowOnly": false,
+                    "datasetSettings": {
+                        "annotations": [],
+                        "linkedService": {
+                            "name": "DWarehouseGold",
+                            "properties": {
+                                "annotations": [],
+                                "type": "DataWarehouse",
+                                "typeProperties": {
+                                    "endpoint": "tqpmecgh4qwehnxfubflt6bxom-s4lv34tzphue3gkequmiidcxnm.datawarehouse.fabric.microsoft.com",
+                                    "artifactId": "01c6b649-7b9c-46d8-b2aa-7000946874ba",
+                                    "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b"
+                                }
+                            }
+                        },
+                        "type": "DataWarehouseTable",
+                        "schema": [],
+                        "typeProperties": {
+                            "schema": "dbo",
+                            "table": "fact_tables"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "loop through all SPs that load fact tables",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "lookup_fact_table_stored_proc",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('lookup_fact_table_stored_proc').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Stored procedure2",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "storedProcedureName": {
+                                    "value": "@concat(item().db_schema, '.' , item().stored_proc)",
+                                    "type": "Expression"
+                                }
+                            },
+                            "linkedService": {
+                                "name": "DWarehouseGold",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "DataWarehouse",
+                                    "typeProperties": {
+                                        "endpoint": "tqpmecgh4qwehnxfubflt6bxom-s4lv34tzphue3gkequmiidcxnm.datawarehouse.fabric.microsoft.com",
+                                        "artifactId": "01c6b649-7b9c-46d8-b2aa-7000946874ba",
+                                        "workspaceId": "f25d1797-7979-4de8-9944-8518840c576b"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "email notification on failure 1",
+                "type": "Office365Email",
+                "dependsOn": [
+                    {
+                        "activity": "loop through all SPs that load dim tables",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                }
+            },
+            {
+                "name": "email notification on failure 2",
+                "type": "Office365Email",
+                "dependsOn": [
+                    {
+                        "activity": "loop through all SPs that load fact tables",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                }
+            }
+        ],
+        "lastModifiedByObjectId": "6dafd8e1-f9ae-4775-a50d-6cf64115d599",
+        "lastPublishTime": "2026-09-25T20:37:32Z"
+    }
+}

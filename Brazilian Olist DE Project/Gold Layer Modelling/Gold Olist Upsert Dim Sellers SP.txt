@@ -1,0 +1,83 @@
+CREATE PROCEDURE Gold.upsert_dim_olist_sellers
+AS
+
+BEGIN
+SET NOCOUNT ON;
+
+-- Step 1: expire active rows whose attributes changed
+UPDATE t
+SET t.active_flag = 'N',
+    t.end_date     = SYSUTCDATETIME(),
+    t.updated_at   = SYSUTCDATETIME()
+
+FROM Gold.dim_olist_sellers t
+LEFT JOIN DWLakehouse.Silver.olist_sellers s
+    ON t.seller_id = s.seller_id
+LEFT JOIN DWLakehouse.dbo.olist_states_mapping a
+    ON t.seller_state = a.state_code
+
+WHERE t.active_flag = 'Y'
+AND (
+        ISNULL(t.seller_zip_code_prefix,'') <> ISNULL(s.seller_zip_code_prefix,'')
+    OR   ISNULL(t.seller_city,'')            <> ISNULL(s.seller_city,'')
+    OR ISNULL(t.seller_state,'')           <> ISNULL(s.seller_state,'')
+    OR ISNULL(t.seller_state_name,'')      <> ISNULL(a.state_name,'')
+  
+);
+
+-- Step 2: insert new rows for brand-new sellers and sellers just expired above
+INSERT INTO Gold.dim_olist_sellers
+(
+    seller_id, 
+    seller_zip_code_prefix, 
+    seller_city, 
+    seller_state,
+    geo_lat, 
+    geo_lng, 
+    seller_state_name,
+    active_flag, 
+    start_date, 
+    end_date, 
+    created_at, 
+    updated_at
+)
+SELECT
+    s.seller_id, 
+    s.seller_zip_code_prefix, 
+    s.seller_city, 
+    s.seller_state,
+    0.0,
+    0.0,
+    a.state_name,
+    'Y', 
+    SYSUTCDATETIME(), 
+    NULL, 
+    SYSUTCDATETIME(), 
+    SYSUTCDATETIME()
+
+FROM DWLakehouse.Silver.olist_sellers s
+LEFT JOIN DWLakehouse.dbo.olist_states_mapping a
+    ON a.state_code = s.seller_state
+
+WHERE NOT EXISTS (
+    SELECT 1 FROM Gold.dim_olist_sellers t
+    WHERE t.seller_id = s.seller_id
+      AND t.active_flag = 'Y'
+);
+
+
+--step 3: Add the geolocation data for each seller
+UPDATE t
+SET t.geo_lat    = g.geolocation_lat,
+    t.geo_lng    = g.geolocation_lng,
+    t.updated_at = SYSUTCDATETIME()
+
+FROM Gold.dim_olist_sellers t
+JOIN DWLakehouse.Silver.olist_geolocation g
+    ON t.seller_zip_code_prefix = g.geolocation_zip_code_prefix
+
+WHERE t.active_flag = 'Y' 
+AND (t.geo_lng = 0.0 or t.geo_lat = 0.0)
+
+SET NOCOUNT OFF;
+END;

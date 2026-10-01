@@ -1,0 +1,106 @@
+CREATE PROCEDURE Gold.upsert_dim_olist_customers
+AS
+
+BEGIN
+SET NOCOUNT ON;
+
+--step 1: Drop the temp table if it already exists from a previous failed run
+IF OBJECT_ID('tempdb..#cust_rank') IS NOT NULL 
+    DROP TABLE #cust_rank;
+
+--step 2: Use temp table to rank customers by latest order date in order to dedup and get unique customers
+SELECT 
+    c.customer_unique_id,
+    c.customer_zip_code_prefix,
+    c.customer_city,
+    c.customer_state,
+    o.order_purchase_timestamp,
+    ROW_NUMBER() OVER (PARTITION BY c.customer_unique_id ORDER BY o.order_purchase_timestamp DESC) as rn
+
+INTO #cust_rank  
+
+FROM 
+    DWLakehouse.Silver.olist_customers c
+INNER JOIN 
+    DWLakehouse.Silver.olist_orders o 
+    ON c.customer_id = o.customer_id;
+
+--step 3: Expire customer rows where the latest purchase is at a new address
+UPDATE t
+SET t.active_flag = 'N',
+    t.end_date     = SYSUTCDATETIME(),
+    t.updated_at   = SYSUTCDATETIME()
+
+FROM Gold.dim_olist_customers t
+INNER JOIN #cust_rank s
+    ON t.customer_unique_id = s.customer_unique_id
+    AND s.rn = 1
+LEFT JOIN DWLakehouse.dbo.olist_states_mapping a
+    ON t.customer_state = a.state_code
+
+WHERE t.active_flag = 'Y' 
+AND (
+       ISNULL(t.customer_zip_code_prefix,'')      <> ISNULL(s.customer_zip_code_prefix,'')
+    OR ISNULL(t.customer_city,'')                 <> ISNULL(s.customer_city,'')
+    OR ISNULL(t.customer_state,'')                <> ISNULL(s.customer_state,'')
+    OR ISNULL(t.customer_state_name,'')           <> ISNULL(a.state_name,'')
+  
+);
+
+-- Step 4: insert new rows for brand-new customers and customers just expired above
+INSERT INTO Gold.dim_olist_customers
+(
+    customer_unique_id, 
+    customer_zip_code_prefix, 
+    customer_city, 
+    customer_state,
+    geo_lat, 
+    geo_lng, 
+    customer_state_name,
+    active_flag, 
+    start_date, 
+    end_date, 
+    created_at, 
+    updated_at
+)
+SELECT
+    s.customer_unique_id, 
+    s.customer_zip_code_prefix, 
+    s.customer_city, 
+    s.customer_state,
+    0.0,
+    0.0,
+    a.state_name,
+    'Y', 
+    SYSUTCDATETIME(), 
+    NULL, 
+    SYSUTCDATETIME(), 
+    SYSUTCDATETIME()
+
+FROM #cust_rank s
+LEFT JOIN DWLakehouse.dbo.olist_states_mapping a
+    ON a.state_code = s.customer_state
+
+WHERE s.rn = 1 
+AND NOT EXISTS (
+    SELECT 1 FROM Gold.dim_olist_customers t
+    WHERE t.customer_unique_id = s.customer_unique_id
+      AND t.active_flag = 'Y'
+);
+
+
+--step 5: Add the geolocation data for each customer
+UPDATE t
+SET t.geo_lat    = g.geolocation_lat,
+    t.geo_lng    = g.geolocation_lng,
+    t.updated_at = SYSUTCDATETIME()
+
+FROM Gold.dim_olist_customers t
+JOIN DWLakehouse.Silver.olist_geolocation g
+    ON t.customer_zip_code_prefix = g.geolocation_zip_code_prefix
+
+WHERE t.active_flag = 'Y' 
+AND (t.geo_lng = 0.0 or t.geo_lat = 0.0)
+
+SET NOCOUNT OFF;
+END;
